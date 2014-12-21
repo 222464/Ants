@@ -2,21 +2,43 @@
 #include <SFML/Graphics.hpp>
 #include <SFML/Audio.hpp>
 
+#include <ants/World.h>
+#include <ants/objects/TestAnt.h>
+
 int main() {
 	sf::RenderWindow window;
 	window.create(sf::VideoMode(1280, 800), "ALife");
 
 	window.setVerticalSyncEnabled(true);
+	window.setFramerateLimit(60);
 
 	sf::Clock clock;
 
 	float dt = 0.017f;
 
+	ants::World world;
+
+	std::shared_ptr<sf::Texture> gridTexture = std::make_shared<sf::Texture>();
+
+	gridTexture->loadFromFile("resources/grid.png");
+
+	std::vector<sf::Color> colors(4);
+	colors[0] = sf::Color::Cyan;
+	colors[1] = sf::Color::Red;
+	colors[2] = sf::Color::Magenta;
+	colors[3] = sf::Color::Green;
+
+	world.create(64, 64, colors, gridTexture);
+
+	Ptr<ants::TestAnt> testAnt = make<ants::TestAnt>();
+
+	world.add(testAnt, sf::Vector2i(32, 32));
+
 	sf::View view;
 	sf::View newView;
 
 	view.setSize(sf::Vector2f(static_cast<float>(window.getSize().x), static_cast<float>(window.getSize().y)));
-	view.setCenter(sf::Vector2f(worldObjectGrid->getWidth() * 0.5f * worldObjectGrid->_cellSize.x, worldObjectGrid->getHeight() * 0.5f * worldObjectGrid->_cellSize.y));
+	view.setCenter(sf::Vector2f(world.getWidth() * 0.5f * world.getCellWidth(), world.getHeight() * 0.5f * world.getCellHeight()));
 
 	newView = view;
 
@@ -25,6 +47,9 @@ int main() {
 	float viewInterpolateRate = 20.0f;
 
 	sf::Vector2i prevMousePos = sf::Mouse::getPosition();
+
+	float updateTimer = 0.0f;
+	const float updateTime = 0.1f;
 
 	bool quit = false;
 	
@@ -79,11 +104,19 @@ int main() {
 
 		window.setView(view);
 
+		updateTimer += dt;
+
+		if (updateTimer > updateTime) {
+			world.update();
+			updateTimer -= updateTime;
+		}
+
 		world.render(window);
 
 		window.display();
 
-		//dt = clock.getElapsedTime().asSeconds();
+		dt = clock.getElapsedTime().asSeconds();
+
 		clock.restart();
 	} while (!quit);
 
