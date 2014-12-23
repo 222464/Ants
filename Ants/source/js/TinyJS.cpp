@@ -3070,14 +3070,16 @@ void CTinyJS::execute(const string &Code, const string &File, int Line, int Colu
 	evaluateComplex(Code, File, Line, Column);
 }
 
-void CTinyJS::executeSafe(const string &Code, const string &File, int Line, int Column) {
+bool CTinyJS::executeSafe(const string &Code, const string &File, int Line, int Column) {
 	try {
 		execute(Code, File, Line, Column);
 	}
 	catch (CScriptException *e) {
 		printf("%s\n", e->toString().c_str());
 		delete e;
+		return false;
 	}
+	return true;
 }
 
 CScriptVarLink CTinyJS::evaluateComplex(CScriptTokenizer &Tokenizer) {

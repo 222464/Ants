@@ -3,9 +3,26 @@
 #include <SFML/Audio.hpp>
 
 #include <ants/World.h>
-#include <ants/objects/TestAnt.h>
+#include <ants/objects/JSAnt.h>
+
+#include <JSExtensions.h>
+#include <Util.h>
+
+#include <string>
 
 int main() {
+	Ptr<CTinyJS> js = make<CTinyJS>();
+
+	registerFunctions(js.get());
+	registerMathFunctions(js.get());
+	registerStringFunctions(js.get());
+
+	//Add print function.
+	js->addNative("function print(str)", js::funcs::print, 0);
+
+	//Create console object.
+	js->executeSafe("var console = {log: print};console.log('Console created.');");
+
 	sf::RenderWindow window;
 	window.create(sf::VideoMode(1280, 800), "ALife");
 
@@ -30,9 +47,9 @@ int main() {
 
 	world.create(64, 64, colors, gridTexture);
 
-	Ptr<ants::TestAnt> testAnt = make<ants::TestAnt>();
+	Ptr<ants::JSAnt> jsAnt = std::make_shared<ants::JSAnt>(js, "js/ant.js");
 
-	world.add(testAnt, sf::Vector2i(32, 32));
+	world.add(jsAnt, sf::Vector2i(32, 32));
 
 	sf::View view;
 	sf::View newView;

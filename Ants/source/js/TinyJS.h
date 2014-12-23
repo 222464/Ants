@@ -1449,7 +1449,7 @@ public:
 	void execute(CScriptTokenizer &Tokenizer);
 	void execute(const char *Code, const std::string &File="", int Line=0, int Column=0);
 	void execute(const std::string &Code, const std::string &File="", int Line=0, int Column=0);
-	void executeSafe(const std::string &Code, const std::string &File="", int Line=0, int Column=0);
+	bool executeSafe(const std::string &Code, const std::string &File="", int Line=0, int Column=0);
 	/** Evaluate the given code and return a link to a javascript object,
 	 * useful for (dangerous) JSON parsing. If nothing to return, will return
 	 * 'undefined' variable type. CScriptVarLink is returned as this will
