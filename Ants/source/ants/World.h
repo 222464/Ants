@@ -59,8 +59,10 @@ namespace ants {
 		float _markTolerance;
 		float _markDecay;
 
+		float _markerRenderScalar;
+
 		World()
-			: _lastObjectId(0), _markTolerance(0.03f), _markDecay(0.02f)
+			: _lastObjectId(0), _markTolerance(0.06f), _markDecay(0.008f), _markerRenderScalar(0.33f)
 		{}
 
 		~World();

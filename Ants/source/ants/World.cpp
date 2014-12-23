@@ -36,19 +36,13 @@ void World::add(const std::shared_ptr<GridObject> &gridObject, sf::Vector2i &pos
 void World::remove(int objectId) {
 	std::unordered_map<int, std::shared_ptr<GridObject>>::iterator it = _gridObjects.find(objectId);
 
-	assert(it != _gridObjects.end());
+	if (it == _gridObjects.end())
+		return;
 
-	_gridObjects.erase(it);
-
-	getCell(it->second->getPosition())._occupantIds.erase(objectId);
-
-	it->second->_pWorld = nullptr;
+	it->second->remove();
 }
 
 void World::setPosition(int objectId, const sf::Vector2i &position) {
-	if (position.x < 0 || position.y < 0 || position.x >= getWidth() || position.y >= getHeight())
-		return;
-
 	std::shared_ptr<GridObject> obj = getGridObject(objectId);
 
 	getCell(obj->getPosition())._occupantIds.erase(objectId);
@@ -59,7 +53,23 @@ void World::setPosition(int objectId, const sf::Vector2i &position) {
 }
 
 void World::placeMarker(const Marker &mark, sf::Vector2i &position) {
-	getCell(position)._markers.push_back(mark);
+	Cell &c = getCell(position);
+
+	bool found = false;
+
+	for (int i = 0; i < c._markers.size(); i++) {
+		if (c._markers[i]._groupId == mark._groupId) {
+			found = true;
+
+			c._markers[i]._vector += mark._vector;
+			c._markers[i]._individualId = mark._individualId;
+
+			break;
+		}
+	}
+
+	if (!found)
+		c._markers.push_back(mark);
 }
 
 void World::update() {
@@ -77,7 +87,9 @@ void World::update() {
 		for (int m = 0; m < cell._markers.size(); m++) {
 			cell._markers[m]._vector *= markerMult;
 
-			if (vectorMagnitude(cell._markers[m]._vector) > _markTolerance)
+			float mag = vectorMagnitude(cell._markers[m]._vector);
+
+			if (mag > _markTolerance)
 				leftOvers.push_back(cell._markers[m]);
 		}
 
@@ -86,9 +98,30 @@ void World::update() {
 
 	for (std::unordered_map<int, std::shared_ptr<GridObject>>::iterator it = _gridObjects.begin(); it != _gridObjects.end(); it++)
 		it->second->update();
+
+	for (std::unordered_map<int, std::shared_ptr<GridObject>>::iterator it = _gridObjects.begin(); it != _gridObjects.end();) {
+		if (it->second->_removeMe) {
+			getCell(it->second->getPosition())._occupantIds.erase(it->second->getObjectId());
+
+			it->second->_pWorld = nullptr;
+
+			it = _gridObjects.erase(it);
+		}
+		else
+			it++;
+	}
 }
 
 void World::render(sf::RenderTarget &target) {
+	for (std::unordered_map<int, std::shared_ptr<GridObject>>::iterator it = _gridObjects.begin(); it != _gridObjects.end(); it++) {
+		sf::Vector2f lowerBound = sf::Vector2f(it->second->getPosition().x * getCellWidth(), it->second->getPosition().y * getCellHeight());
+		sf::Vector2f upperBound = lowerBound + getCellSize();
+
+		sf::FloatRect aabb = rectFromBounds(lowerBound, upperBound);
+
+		it->second->renderUpdate();
+	}
+
 	const float colorInv = 1.0f / 255.0f;
 
 	sf::Sprite gridSprite;
@@ -123,47 +156,58 @@ void World::render(sf::RenderTarget &target) {
 	sf::RenderStates markerRenderStates;
 	markerRenderStates.blendMode = sf::BlendMultiply;
 
-	for (int x = 0; x < _width; x++)
-	for (int y = 0; y < _height; y++) {
-		sf::Vector2i pos(x, y);
+	for (int sx = minSx; sx < maxSx; sx++)
+	for (int sy = minSy; sy < maxSy; sy++) {
+		for (int dx = 0; dx < 64; dx++)
+		for (int dy = 0; dy < 64; dy++) {
+			sf::Vector2i pos(sx * 64 + dx, sy * 64 + dy);
 
-		Cell &cell = getCell(pos);
+			Cell &cell = getCell(pos);
 
-		if (!cell._markers.empty()) {
-			float r = 1.0f;
-			float g = 1.0f;
-			float b = 1.0f;
-			float totalMag = 1.0f;
+			if (!cell._markers.empty()) {
+				float r = 1.0f;
+				float g = 1.0f;
+				float b = 1.0f;
+				float totalMag = 1.0f;
 
-			for (int m = 0; m < cell._markers.size(); m++) {
-				float mag = vectorMagnitude(cell._markers[m]._vector);
+				sf::Vector2f vector(0.0f, 0.0f);
 
-				r += mag * _markerGroupColors[cell._markers[m]._groupId].r * colorInv;
-				g += mag * _markerGroupColors[cell._markers[m]._groupId].g * colorInv;
-				b += mag * _markerGroupColors[cell._markers[m]._groupId].b * colorInv;
+				for (int m = 0; m < cell._markers.size(); m++) {
+					vector += cell._markers[m]._vector;
 
-				totalMag += mag;
+					float mag = vectorMagnitude(cell._markers[m]._vector) * _markerRenderScalar;
+
+					sf::Color c = _markerGroupColors[cell._markers[m]._groupId];
+
+					r += mag * c.r * colorInv;
+					g += mag * c.g * colorInv;
+					b += mag * c.b * colorInv;
+
+					totalMag += mag;
+				}
+
+				float totalMagInv = 1.0f / totalMag;
+
+				sf::RectangleShape rectShape;
+
+				rectShape.setPosition(sf::Vector2f(pos.x * getCellWidth() + 1, pos.y * getCellHeight() + 1));
+				rectShape.setSize(sf::Vector2f(getCellWidth() - 1.0f, getCellHeight() - 1.0f));
+				rectShape.setFillColor(sf::Color(r * totalMagInv * 255.0f, g * totalMagInv * 255.0f, b * totalMagInv * 255.0f));
+
+				target.draw(rectShape);
 			}
 
-			float totalMagInv = 1.0f / totalMag;
+			for (std::set<int>::const_iterator cit = cell._occupantIds.begin(); cit != cell._occupantIds.end(); cit++) {
+				Ptr<GridObject> obj = _gridObjects[*cit];
 
-			sf::RectangleShape rectShape;
+				sf::Vector2f lowerBound = sf::Vector2f(obj->getPosition().x * getCellWidth(), obj->getPosition().y * getCellHeight());
+				sf::Vector2f upperBound = lowerBound + getCellSize();
 
-			rectShape.setPosition(sf::Vector2f(pos.x * getCellWidth() + 1, pos.y * getCellHeight() + 1));
-			rectShape.setSize(sf::Vector2f(getCellWidth() - 1.0f, getCellHeight() - 1.0f));
-			rectShape.setFillColor(sf::Color(r * totalMagInv * 255.0f, g * totalMagInv * 255.0f, b * totalMagInv * 255.0f));
+				sf::FloatRect aabb = rectFromBounds(lowerBound, upperBound);
 
-			target.draw(rectShape);
+				if (rectIntersects(viewRect, aabb))
+					obj->render(target);
+			}
 		}
-	}
-
-	for (std::unordered_map<int, std::shared_ptr<GridObject>>::iterator it = _gridObjects.begin(); it != _gridObjects.end(); it++) {
-		sf::Vector2f lowerBound = sf::Vector2f(it->second->getPosition().x * getCellWidth(), it->second->getPosition().y * getCellHeight());
-		sf::Vector2f upperBound = lowerBound + getCellSize();
-
-		sf::FloatRect aabb = rectFromBounds(lowerBound, upperBound);
-
-		if (rectIntersects(viewRect, aabb))
-			it->second->render(target);
 	}
 }

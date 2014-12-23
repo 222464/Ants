@@ -5,11 +5,15 @@
 #include <ants/World.h>
 #include <ants/objects/TestAnt.h>
 
+#include <ants/objects/Food.h>
+#include <ants/objects/Nest.h>
+#include <ants/objects/Obstacle.h>
+
 int main() {
 	sf::RenderWindow window;
 	window.create(sf::VideoMode(1280, 800), "ALife");
 
-	window.setVerticalSyncEnabled(true);
+	//window.setVerticalSyncEnabled(true);
 	window.setFramerateLimit(60);
 
 	sf::Clock clock;
@@ -28,11 +32,41 @@ int main() {
 	colors[2] = sf::Color::Magenta;
 	colors[3] = sf::Color::Green;
 
-	world.create(64, 64, colors, gridTexture);
+	world.create(128, 128, colors, gridTexture);
 
-	Ptr<ants::TestAnt> testAnt = make<ants::TestAnt>();
+	for (int i = 0; i < 5; i++) {
+		std::uniform_int_distribution<int> nestDistX(1, world.getWidth() - 2);
+		std::uniform_int_distribution<int> nestDistY(1, world.getHeight() - 2);
 
-	world.add(testAnt, sf::Vector2i(32, 32));
+		sf::Vector2i pos = sf::Vector2i(nestDistX(world._generator), nestDistY(world._generator));
+
+		for (int dx = -1; dx <= 1; dx++)
+		for (int dy = -1; dy <= 1; dy++) {
+			Ptr<ants::Nest> nest = make<ants::Nest>();
+
+			world.add(nest, sf::Vector2i(pos.x + dx, pos.y + dy));
+		}
+
+		for (int i = 0; i < 50; i++) {
+			Ptr<ants::TestAnt> testAnt = make<ants::TestAnt>();
+
+			world.add(testAnt, pos);
+		}
+	}
+
+	for (int i = 0; i < 8; i++) {
+		std::uniform_int_distribution<int> foodDistX(1, world.getWidth() - 2);
+		std::uniform_int_distribution<int> foodDistY(1, world.getHeight() - 2);
+
+		sf::Vector2i pos = sf::Vector2i(foodDistX(world._generator), foodDistY(world._generator));
+
+		for (int dx = -1; dx <= 1; dx++)
+		for (int dy = -1; dy <= 1; dy++) {
+			Ptr<ants::Food> food = make<ants::Food>();
+
+			world.add(food, sf::Vector2i(pos.x + dx, pos.y + dy));
+		}
+	}
 
 	sf::View view;
 	sf::View newView;
@@ -96,6 +130,30 @@ int main() {
 			view.setCenter(view.getCenter() - sf::Vector2f(dPos.x * (view.getSize().x / window.getSize().x), dPos.y * (view.getSize().x / window.getSize().x)));
 
 			newView.setCenter(view.getCenter());
+		}
+
+		if (sf::Mouse::isButtonPressed(sf::Mouse::Right)) {
+			sf::Vector2f mouseCoords = window.mapPixelToCoords(sf::Mouse::getPosition(window));
+
+			sf::Vector2i gridCoords(mouseCoords.x / world.getCellWidth(), mouseCoords.y / world.getCellHeight());
+
+			if (gridCoords.x >= 0 && gridCoords.y >= 0 && gridCoords.x < world.getWidth() && gridCoords.y < world.getHeight()) {
+				bool hasObstacle = false;
+				
+				for (std::set<int>::const_iterator cit = world.getCell(gridCoords)._occupantIds.begin(); cit != world.getCell(gridCoords)._occupantIds.end(); cit++) {
+					if (world.getGridObject(*cit)->getName() == "obstacle") {
+						hasObstacle = true;
+
+						break;
+					}
+				}
+
+				if (!hasObstacle) {
+					Ptr<ants::Obstacle> obstacle = make<ants::Obstacle>();
+
+					world.add(obstacle, gridCoords);
+				}
+			}
 		}
 
 		prevMousePos = sf::Mouse::getPosition();

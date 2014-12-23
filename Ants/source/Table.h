@@ -41,8 +41,8 @@ public:
 	}
 
 	template<class T>
-	Ptr<T> &getPtr(const std::string &key) {
-		return std::static_pointer_cast<T>(_data[key]);
+	T* getPtr(const std::string &key) {
+		return static_cast<T*>(_data[key].get());
 	}
 
 	void clear() {
